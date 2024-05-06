@@ -73,7 +73,7 @@ btn_pedra.addEventListener('click', () => {
     }, 1000)
 
     if(escolha == escolhaAdversario) {
-        resultadoTexto.textContent = escolhaAdversario + " 🪨"
+        resultadoTexto.textContent = escolhaAdversario + " 🗿"
         mensagemTexto.textContent = "Empate!"
 
         cEmpates++
@@ -127,7 +127,7 @@ btn_papel.addEventListener('click', () => {
         n2.innerHTML = cDerrotas
 
     } else {
-        resultadoTexto.textContent = escolhaAdversario + " 🪨"
+        resultadoTexto.textContent = escolhaAdversario + " 🗿"
         mensagemTexto.textContent = "Vitória!"
 
         cVitorias++
