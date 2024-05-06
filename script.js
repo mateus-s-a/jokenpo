@@ -40,7 +40,7 @@ btn_tesoura.addEventListener('click', () => {
         n3.innerHTML = cEmpates
 
     } else if(escolhaAdversario == "Pedra") {
-        resultadoTexto.textContent = escolhaAdversario + " 🪨"
+        resultadoTexto.textContent = escolhaAdversario + " 🗿"
         mensagemTexto.textContent = "Derrota!"
 
         cDerrotas++
