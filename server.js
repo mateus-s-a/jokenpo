@@ -52,9 +52,9 @@ function determineWinner() {
     (player1.choice === "Tesoura" && player2.choice === "Papel") ||
     (player1.choice === "Papel" && player2.choice === "Pedra")
   ) {
-    result = `Player 1 (${player1.choice}) wins against Player 2 (${player2.choice})`;
+    result = `P1 (${player1.choice}) venceu de P2 (${player2.choice})`;
   } else {
-    result = `Player 2 (${player2.choice}) wins against Player 1 (${player1.choice})`;
+    result = `P2 (${player2.choice}) venceu de P1 (${player1.choice})`;
   }
 
   // io.emit() sends a message to every single connected client

@@ -32,3 +32,16 @@ btn_pedra.addEventListener('click', () => {
 btn_papel.addEventListener('click', () => {
   socket.emit('playerChoice', 'Papel');
 });
+
+
+// gameResult
+socket.on('gameResult', (result) => {             // listening to gameResult
+  mensagemTexto.textContent = result;
+
+  mensagemTexto.classList.add('animado');
+  setTimeout(() => {
+    mensagemTexto.classList.remove('animado');
+  }, 1000);
+
+  resultadoTexto.textContent = '';                // new round
+});
