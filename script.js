@@ -1,3 +1,5 @@
+const socket = io();
+
 const btn_tesoura = document.querySelector('.tesoura')
 const btn_pedra = document.querySelector('.pedra')
 const btn_papel = document.querySelector('.papel')
