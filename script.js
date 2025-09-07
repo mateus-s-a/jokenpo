@@ -90,6 +90,11 @@ socket.on('gameResult', (result) => {             // listening to gameResult
   mensagemTexto.textContent = result.message;
   resultadoTexto.textContent = choiceToEmoji[result.opponentChoice] || '';                // new round
 
+  
+  resultadoTexto.classList.remove('reveal-anim'); // re-trigger the reveal animation
+  void resultadoTexto.offsetWidth;                // small trick to force the browser restart the animation
+  resultadoTexto.classList.add('reveal-anim');
+
   if (result.score) {                             // update the scoreboard UI
     n1.innerHTML = result.score.wins;
     n2.innerHTML = result.score.losses;
