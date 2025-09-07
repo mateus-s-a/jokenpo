@@ -65,9 +65,9 @@ socket.on('gameStart', () => {
 
 
 const choiceToEmoji = {
-  "Tesoura": "✂",
-  "Pedra": "🗿",
-  "Papel": "📜"
+  "Tesoura": "✂️",
+  "Pedra": "🪨",
+  "Papel": "📃"
 };
 
 // gameResult
