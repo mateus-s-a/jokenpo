@@ -18,7 +18,7 @@ let rooms = {};
 io.on('connection', (socket) => {
   console.log(`A user connected: ${socket.id}`);
 
-  socket.on('findGame', () => {           // handler type
+  socket.on('findGame', (data) => {           // handler type
     const { playerName, gameMode } = data;
     let roomId = findAvailableRoom(gameMode);
 
@@ -66,7 +66,7 @@ io.on('connection', (socket) => {
     const players = Object.values(room.players);
 
     if (players.length === 2 && players.every(p => p.choice !== null)) {
-      console.log(`Room ${roomId}: Both players chose. Determining winner.`);
+      console.log(`Room ${roomId}: Both players chose. Determining winner...`);
       determineWinner(roomId);
     }
   });
@@ -117,14 +117,33 @@ function determineWinner(roomId) {
     // --- P1 WINS ---
     player1.score.wins++;
     player2.score.losses++;
-    result1 = { message: `Vitória! ${player1.choice} vence de ${player2.choice}(${player2.name})`, opponentChoice: player2.choice, score: player1.score };
-    result2 = { message: `Derrota! ${player2.choice}(${player2.name}) perde de ${player1.choice}`, opponentChoice: player1.choice, score: player2.score };
+    
+    result1 = {
+      message: `Vitória! ${player2.name} perdeu`,
+      opponentChoice: player2.choice,
+      score: player1.score
+    };
+    result2 = {
+      message: `Derrota! ${player1.name} venceu`,
+      opponentChoice: player1.choice,
+      score: player2.score
+    };
+
   } else {
     // --- P2 WINS ---
     player2.score.wins++;
     player1.score.losses++;
-    result1 = { message: `Derrota! ${player1.choice}(${player1.name}) perde de ${player2.choice}`, opponentChoice: player2.choice, score: player1.score };
-    result2 = { message: `Vitória! ${player2.choice} vence de ${player1.choice}(${player1.name})`, opponentChoice: player1.choice, score: player2.score };
+
+    result1 = {
+      message: `Derrota! ${player2.name} venceu`,
+      opponentChoice: player2.choice,
+      score: player1.score
+    };
+    result2 = {
+      message: `Vitória! ${player1.name} perdeu`,
+      opponentChoice: player1.choice,
+      score: player2.score
+    };
   }
 
   io.to(player1Id).emit('gameResult', result1);
