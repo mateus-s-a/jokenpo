@@ -19,32 +19,38 @@ io.on('connection', (socket) => {
   console.log(`A user connected: ${socket.id}`);
 
   socket.on('findGame', () => {           // handler type
-    let roomId = findAvailableRoom();
+    const { playerName, gameMode } = data;
+    let roomId = findAvailableRoom(gameMode);
 
     if (roomId) {
       socket.join(roomId);                // joining existing room
       socket.roomId = roomId;
       rooms[roomId].players[socket.id] = {
+        name: playerName,
         choice: null,
         score: { wins: 0, losses: 0, ties: 0 }
       };
       
-      console.log(`Player ${socket.id} joined room ${roomId}`);
-      io.to(roomId).emit('gameStart');    // notify game started
+      console.log(`Player ${playerName} (${socket.id}) joined room ${roomId}`);
+      
+      const playerNames = Object.values(rooms[roomId].players).map(p => p.name);
+      io.to(roomId).emit('gameStart', { playerNames });                         // notify game started & show player names for each other
     } else {
       roomId = `room_${socket.id}`;       // create new room
       socket.join(roomId);
       socket.roomId = roomId;
       rooms[roomId] = {                   // create the room with player and score
+        mode: gameMode,                   // store the game mode
         players: {
           [socket.id]: {
+            name: playerName,             // store player's name
             choice: null,
             score: { wins: 0, losses: 0, ties: 0 }
           }
         }
       };
       
-      console.log(`Player ${socket.id} created and joined room ${roomId}`);
+      console.log(`Player ${playerName} (${socket.id}) created and joined room ${roomId}`);
       socket.emit('waitingForPlayer');
     }
   });
@@ -78,8 +84,9 @@ io.on('connection', (socket) => {
 });
 
 
-function findAvailableRoom() {
+function findAvailableRoom(gameMode) {
   return Object.keys(rooms).find(roomId =>
+    rooms[roomId].mode === gameMode && 
     Object.keys(rooms[roomId].players).length === 1
   );
 }
@@ -110,14 +117,14 @@ function determineWinner(roomId) {
     // --- P1 WINS ---
     player1.score.wins++;
     player2.score.losses++;
-    result1 = { message: `Vitória! ${player1.choice} vence de ${player2.choice}`, opponentChoice: player2.choice, score: player1.score };
-    result2 = { message: `Derrota! ${player2.choice} perde de ${player1.choice}`, opponentChoice: player1.choice, score: player2.score };
+    result1 = { message: `Vitória! ${player1.choice} vence de ${player2.choice}(${player2.name})`, opponentChoice: player2.choice, score: player1.score };
+    result2 = { message: `Derrota! ${player2.choice}(${player2.name}) perde de ${player1.choice}`, opponentChoice: player1.choice, score: player2.score };
   } else {
     // --- P2 WINS ---
     player2.score.wins++;
     player1.score.losses++;
-    result1 = { message: `Derrota! ${player1.choice} perde de ${player2.choice}`, opponentChoice: player2.choice, score: player1.score };
-    result2 = { message: `Vitória! ${player2.choice} vence de ${player1.choice}`, opponentChoice: player1.choice, score: player2.score };
+    result1 = { message: `Derrota! ${player1.choice}(${player1.name}) perde de ${player2.choice}`, opponentChoice: player2.choice, score: player1.score };
+    result2 = { message: `Vitória! ${player2.choice} vence de ${player1.choice}(${player1.name})`, opponentChoice: player1.choice, score: player2.score };
   }
 
   io.to(player1Id).emit('gameResult', result1);
