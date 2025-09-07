@@ -103,6 +103,26 @@ socket.on('gameResult', (result) => {             // listening to gameResult
 });
 
 
+// matchOver
+socket.on('matchOver', (data) => {
+  mensagemTexto.textContent = `${data.winnerName} venceu a partida!`;     // display the final winner at 3-5 modes
+
+  btn_tesoura.disabled = true;    // disable game buttons
+  btn_pedra.disabled = true;
+  btn_papel.disabled = true;
+
+  const playAgainBtn = document.createElement('button');
+  playAgainBtn.textContent = 'Revanche';
+  playAgainBtn.className = 'find-game-btn';   // reuse the same style
+  playAgainBtn.onclick = () => window.location.reload();
+
+  setTimeout(() => {    // brief delay to show the play again button
+    mensagemTexto.appendChild(document.createElement('br'));
+    mensagemTexto.appendChild(playAgainBtn);
+  }, 2000);
+});
+
+// opponentDisconnected
 socket.on('opponentDisconnected', () => {
   mensagemTexto.textContent = 'Adversário saiu. Encontre um novo jogo.';
   gameDiv.style.display = 'none';               // hide game

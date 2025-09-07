@@ -1,4 +1,3 @@
-const { pbkdf2 } = require('crypto');
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -39,8 +38,14 @@ io.on('connection', (socket) => {
       roomId = `room_${socket.id}`;       // create new room
       socket.join(roomId);
       socket.roomId = roomId;
+
+      let winCondition = Infinity;
+      if (gameMode === 'bo3') winCondition = 3;
+      if (gameMode === 'bo5') winCondition = 5;
+
       rooms[roomId] = {                   // create the room with player and score
         mode: gameMode,                   // store the game mode
+        winCondition: winCondition,
         players: {
           [socket.id]: {
             name: playerName,             // store player's name
@@ -93,67 +98,78 @@ function findAvailableRoom(gameMode) {
 
 function determineWinner(roomId) {
   const room = rooms[roomId];
+  if (!room) return;                // when room been deleted on 'disconnect' handler
+
   const playerIds = Object.keys(room.players);
   const player1Id = playerIds[0];
   const player2Id = playerIds[1];
   const player1 = room.players[player1Id];
   const player2 = room.players[player2Id];
+  let matchWinner = null;
   
-  let result1, result2;
-
+  // main logic of the game
   if (player1.choice === player2.choice) {
-    // --- HANDLE TIE ---
     player1.score.ties++;
     player2.score.ties++;
-    const message = `Empate. Ambos escolheram ${player1.choice}`;
-    result1 = { message: message, opponentChoice: player2.choice, score: player1.score };
-    result2 = { message: message, opponentChoice: player1.choice, score: player2.score };
-
   } else if (
     (player1.choice === "Pedra" && player2.choice === "Tesoura") ||
     (player1.choice === "Tesoura" && player2.choice === "Papel") ||
     (player1.choice === "Papel" && player2.choice === "Pedra")
   ) {
-    // --- P1 WINS ---
     player1.score.wins++;
     player2.score.losses++;
-    
-    result1 = {
-      message: `Vitória! ${player2.name} perdeu`,
-      opponentChoice: player2.choice,
-      score: player1.score
-    };
-    result2 = {
-      message: `Derrota! ${player1.name} venceu`,
-      opponentChoice: player1.choice,
-      score: player2.score
-    };
-
   } else {
-    // --- P2 WINS ---
     player2.score.wins++;
     player1.score.losses++;
-
-    result1 = {
-      message: `Derrota! ${player2.name} venceu`,
-      opponentChoice: player2.choice,
-      score: player1.score
-    };
-    result2 = {
-      message: `Vitória! ${player1.name} perdeu`,
-      opponentChoice: player1.choice,
-      score: player2.score
-    };
   }
 
+  if (player1.score.wins >= room.winCondition) {
+    matchWinner = player1.name;
+  } else if (player2.score.wins >= room.winCondition) {
+    matchWinner = player2.name;
+  }
+
+
+  // RESULT OBJECTS
+  const result1 = {
+    message: getResultMessage(player1, player2, 'You'),
+    opponentChoice: player2.choice,
+    score: player1.score
+  };
+  const result2 = {
+    message: getResultMessage(player2, player1, 'You'),
+    opponentChoice: player1.choice,
+    score: player2.score
+  };
+
+  // send result information to players
   io.to(player1Id).emit('gameResult', result1);
   io.to(player2Id).emit('gameResult', result2);
+  console.log(`Room ${roomId} round result sent...`);
 
-  console.log(`Room ${roomId} result sent`);
 
-  player1.choice = null;
-  player2.choice = null;
+  if (matchWinner) {
+    io.to(roomId).emit('matchOver', { winnerName: matchWinner });
+    console.log(`Match over in room ${roomId}. Winner: ${matchWinner}`);
+
+    delete rooms[roomId];       // clean room
+  } else {
+    player1.choice = null;      // reset
+    player2.choice = null;
+  }
 }
+
+// HELPER function to generate the result matches messages
+function getResultMessage(player, opponent, selfRef) {
+  if (player.choice === opponent.choice) {
+    return `Empate! Ambos escolheram ${player.choice}`;
+  } else if (player.score.wins > opponent.score.losses) {
+    return `${selfRef} venceu! ${player.choice} derrotou ${opponent.choice} de ${opponent.name}`;
+  } else {
+    return `${selfRef} perdeu! ${player.choice} foi derrotado por ${opponent.choice} de ${opponent.name}`;
+  }
+}
+
 
 
 
