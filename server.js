@@ -22,6 +22,7 @@ io.on('connection', (socket) => {
 
     if (roomId) {
       socket.join(roomId);                // joining existing room
+      socket.roomId = roomId;
       rooms[roomId].players[socket.id] = { choice: null };
       
       console.log(`Player ${socket.id} joined room ${roomId}`);
@@ -37,7 +38,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('playerChoice', (choice) => {
-    const roomId = Object.keys(socket.rooms).find(r => r.startsWith('room_'));
+    const roomId = Array.from(socket.rooms).find(r => r.startsWith('room_'));
     if (!roomId || !rooms[roomId]) return;
 
     rooms[roomId].players[socket.id].choice = choice;
@@ -55,7 +56,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`A user disconnected: ${socket.id}`);
     
-    const roomId = Object.keys(socket.rooms).find(r => r.startsWith('room_'));
+    const roomId = socket.roomId;
     if (roomId && rooms[roomId]) {
       delete rooms[roomId];
       io.to(roomId).emit('opponentDisconnected');
