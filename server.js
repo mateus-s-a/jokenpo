@@ -1,3 +1,4 @@
+const { pbkdf2 } = require('crypto');
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -17,20 +18,31 @@ let rooms = {};
 io.on('connection', (socket) => {
   console.log(`A user connected: ${socket.id}`);
 
-  socket.on('findGame', () => {
+  socket.on('findGame', () => {           // handler type
     let roomId = findAvailableRoom();
 
     if (roomId) {
       socket.join(roomId);                // joining existing room
       socket.roomId = roomId;
-      rooms[roomId].players[socket.id] = { choice: null };
+      rooms[roomId].players[socket.id] = {
+        choice: null,
+        score: { wins: 0, losses: 0, ties: 0 }
+      };
       
       console.log(`Player ${socket.id} joined room ${roomId}`);
       io.to(roomId).emit('gameStart');    // notify game started
     } else {
       roomId = `room_${socket.id}`;       // create new room
       socket.join(roomId);
-      rooms[roomId] = { players: { [socket.id]: { choice: null } } };
+      socket.roomId = roomId;
+      rooms[roomId] = {                   // create the room with player and score
+        players: {
+          [socket.id]: {
+            choice: null,
+            score: { wins: 0, losses: 0, ties: 0 }
+          }
+        }
+      };
       
       console.log(`Player ${socket.id} created and joined room ${roomId}`);
       socket.emit('waitingForPlayer');
@@ -77,15 +89,18 @@ function determineWinner(roomId) {
   const playerIds = Object.keys(room.players);
   const player1Id = playerIds[0];
   const player2Id = playerIds[1];
-  const player1 = room.players[playerIds[0]];
-  const player2 = room.players[playerIds[1]];
+  const player1 = room.players[player1Id];
+  const player2 = room.players[player2Id];
   
   let result1, result2;
 
   if (player1.choice === player2.choice) {
+    // --- HANDLE TIE ---
+    player1.score.ties++;
+    player2.score.ties++;
     const message = `Empate. Ambos escolheram ${player1.choice}`;
-    result1 = { message: message, opponentChoice: player2.choice };
-    result2 = { message: message, opponentChoice: player1.choice };
+    result1 = { message: message, opponentChoice: player2.choice, score: player1.score };
+    result2 = { message: message, opponentChoice: player1.choice, score: player2.score };
 
   } else if (
     (player1.choice === "Pedra" && player2.choice === "Tesoura") ||
@@ -93,12 +108,16 @@ function determineWinner(roomId) {
     (player1.choice === "Papel" && player2.choice === "Pedra")
   ) {
     // --- P1 WINS ---
-    result1 = { message: `Vitória! ${player1.choice} vence de ${player2.choice}`, opponentChoice: player2.choice };
-    result2 = { message: `Derrota! ${player2.choice} perde de ${player1.choice}`, opponentChoice: player1.choice };
+    player1.score.wins++;
+    player2.score.losses++;
+    result1 = { message: `Vitória! ${player1.choice} vence de ${player2.choice}`, opponentChoice: player2.choice, score: player1.score };
+    result2 = { message: `Derrota! ${player2.choice} perde de ${player1.choice}`, opponentChoice: player1.choice, score: player2.score };
   } else {
     // --- P2 WINS ---
-    result1 = { message: `Derrota! ${player1.choice} perde de ${player2.choice}`, opponentChoice: player2.choice };
-    result2 = { message: `Vitória! ${player2.choice} vence de ${player1.choice}`, opponentChoice: player1.choice };
+    player2.score.wins++;
+    player1.score.losses++;
+    result1 = { message: `Derrota! ${player1.choice} perde de ${player2.choice}`, opponentChoice: player2.choice, score: player1.score };
+    result2 = { message: `Vitória! ${player2.choice} vence de ${player1.choice}`, opponentChoice: player1.choice, score: player2.score };
   }
 
   io.to(player1Id).emit('gameResult', result1);

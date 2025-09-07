@@ -74,6 +74,12 @@ const choiceToEmoji = {
 socket.on('gameResult', (result) => {             // listening to gameResult
   mensagemTexto.textContent = result.message;
   resultadoTexto.textContent = choiceToEmoji[result.opponentChoice] || '';                // new round
+
+  if (result.score) {                             // update the scoreboard UI
+    n1.innerHTML = result.score.wins;
+    n2.innerHTML = result.score.losses;
+    n3.innerHTML = result.score.ties;
+  }
 });
 
 
