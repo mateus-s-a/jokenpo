@@ -75,24 +75,36 @@ function findAvailableRoom() {
 function determineWinner(roomId) {
   const room = rooms[roomId];
   const playerIds = Object.keys(room.players);
+  const player1Id = playerIds[0];
+  const player2Id = playerIds[1];
   const player1 = room.players[playerIds[0]];
   const player2 = room.players[playerIds[1]];
-  let result;
+  
+  let result1, result2;
 
   if (player1.choice === player2.choice) {
-    result = "Empate!";
+    const message = `Empate. Ambos escolheram ${player1.choice}`;
+    result1 = { message: message, opponentChoice: player2.choice };
+    result2 = { message: message, opponentChoice: player1.choice };
+
   } else if (
     (player1.choice === "Pedra" && player2.choice === "Tesoura") ||
     (player1.choice === "Tesoura" && player2.choice === "Papel") ||
     (player1.choice === "Papel" && player2.choice === "Pedra")
   ) {
-    result = `P1 (${player1.choice}) venceu.`;
+    // --- P1 WINS ---
+    result1 = { message: `Vitória! ${player1.choice} vence de ${player2.choice}`, opponentChoice: player2.choice };
+    result2 = { message: `Derrota! ${player2.choice} perde de ${player1.choice}`, opponentChoice: player1.choice };
   } else {
-    result = `P2 (${player2.choice}) venceu.`;
+    // --- P2 WINS ---
+    result1 = { message: `Derrota! ${player1.choice} perde de ${player2.choice}`, opponentChoice: player2.choice };
+    result2 = { message: `Vitória! ${player2.choice} vence de ${player1.choice}`, opponentChoice: player1.choice };
   }
 
-  io.to(roomId).emit('gameResult', result);
-  console.log(`Room ${roomId} result send: ${result}`);
+  io.to(player1Id).emit('gameResult', result1);
+  io.to(player2Id).emit('gameResult', result2);
+
+  console.log(`Room ${roomId} result sent`);
 
   player1.choice = null;
   player2.choice = null;

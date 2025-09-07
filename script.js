@@ -63,11 +63,19 @@ socket.on('gameStart', () => {
   gameDiv.style.display = 'flex';         // show game controls when players connected
 });
 
+
+const choiceToEmoji = {
+  "Tesoura": "✂",
+  "Pedra": "🗿",
+  "Papel": "📜"
+};
+
 // gameResult
 socket.on('gameResult', (result) => {             // listening to gameResult
-  mensagemTexto.textContent = result;
-  resultadoTexto.textContent = '';                // new round
+  mensagemTexto.textContent = result.message;
+  resultadoTexto.textContent = choiceToEmoji[result.opponentChoice] || '';                // new round
 });
+
 
 socket.on('opponentDisconnected', () => {
   mensagemTexto.textContent = 'Adversário saiu. Encontre um novo jogo.';
