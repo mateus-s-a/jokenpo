@@ -11,65 +11,94 @@ app.use(express.static(__dirname));
 
 
 
-let players = {};                                                 // Object to store player data and choices
+let rooms = {};
 
 
 io.on('connection', (socket) => {
-  console.log(`A user connected with ID: ${socket.id}`);
-  players[socket.id] = { choice: null };                          // add a new player to the list
+  console.log(`A user connected: ${socket.id}`);
 
-  socket.on('playerChoice', (choice) => {                         // Listen for player's choice
-    players[socket.id].choice = choice;
-    console.log(`Player ${socket.id} chose ${choice}`);
+  socket.on('findGame', () => {
+    let roomId = findAvailableRoom();
 
-    const activePlayers = Object.values(players);
-    const playersWithChoices = activePlayers.filter(p => p.choice !== null);
-
-    if (playersWithChoices.length === 2) {
-      console.log('Both players have made a choice. Determining winner...');
-      determineWinner();
+    if (roomId) {
+      socket.join(roomId);                // joining existing room
+      rooms[roomId].players[socket.id] = { choice: null };
+      
+      console.log(`Player ${socket.id} joined room ${roomId}`);
+      io.to(roomId).emit('gameStart');    // notify game started
+    } else {
+      roomId = `room_${socket.id}`;       // create new room
+      socket.join(roomId);
+      rooms[roomId] = { players: { [socket.id]: { choice: null } } };
+      
+      console.log(`Player ${socket.id} created and joined room ${roomId}`);
+      socket.emit('waitingForPlayer');
     }
+  });
 
+  socket.on('playerChoice', (choice) => {
+    const roomId = Object.keys(socket.rooms).find(r => r.startsWith('room_'));
+    if (!roomId || !rooms[roomId]) return;
+
+    rooms[roomId].players[socket.id].choice = choice;
+    console.log(`Player ${socket.id} in room ${roomId} chose ${choice}`);
+
+    const room = rooms[roomId];
+    const players = Object.values(room.players);
+
+    if (players.length === 2 && players.every(p => p.choice !== null)) {
+      console.log(`Room ${roomId}: Both players chose. Determining winner.`);
+      determineWinner(roomId);
+    }
   });
 
   socket.on('disconnect', () => {
-    console.log(`A user disconnected with ID: ${socket.id}`);
-    delete players[socket.id];                                    // Remove player for the list
+    console.log(`A user disconnected: ${socket.id}`);
+    
+    const roomId = Object.keys(socket.rooms).find(r => r.startsWith('room_'));
+    if (roomId && rooms[roomId]) {
+      delete rooms[roomId];
+      io.to(roomId).emit('opponentDisconnected');
+      console.log(`Room ${roomId} was closed`);
+    }
   });
 });
 
 
-function determineWinner() {
-  const playerIds = Object.keys(players);
-  const player1 = players[playerIds[0]];
-  const player2 = players[playerIds[1]];
+function findAvailableRoom() {
+  return Object.keys(rooms).find(roomId =>
+    Object.keys(rooms[roomId].players).length === 1
+  );
+}
+
+function determineWinner(roomId) {
+  const room = rooms[roomId];
+  const playerIds = Object.keys(room.players);
+  const player1 = room.players[playerIds[0]];
+  const player2 = room.players[playerIds[1]];
   let result;
 
   if (player1.choice === player2.choice) {
-    result = "Empate";
+    result = "Empate!";
   } else if (
     (player1.choice === "Pedra" && player2.choice === "Tesoura") ||
     (player1.choice === "Tesoura" && player2.choice === "Papel") ||
     (player1.choice === "Papel" && player2.choice === "Pedra")
   ) {
-    result = `P1 (${player1.choice}) venceu de P2 (${player2.choice})`;
+    result = `P1 (${player1.choice}) venceu.`;
   } else {
-    result = `P2 (${player2.choice}) venceu de P1 (${player1.choice})`;
+    result = `P2 (${player2.choice}) venceu.`;
   }
 
-  // io.emit() sends a message to every single connected client
-  io.emit('gameResult', result);                                // Send the result to both players
-  console.log('Result send:', result);
+  io.to(roomId).emit('gameResult', result);
+  console.log(`Room ${roomId} result send: ${result}`);
 
-  // reset for the next round
   player1.choice = null;
   player2.choice = null;
 }
 
 
 
-
-
 server.listen(port, () => {
-  console.log(`Server is runnign at http://localhost:${port}`);
+  console.log(`Server is running on http://localhost:${port}`);
 });
