@@ -105,42 +105,70 @@ function determineWinner(roomId) {
   const player2Id = playerIds[1];
   const player1 = room.players[player1Id];
   const player2 = room.players[player2Id];
+  
+  let result1, result2;
   let matchWinner = null;
   
   // main logic of the game
   if (player1.choice === player2.choice) {
     player1.score.ties++;
     player2.score.ties++;
+    const message = `Empate! Ambos escolheram ${player1.choice}`;
+    const result1 = {
+      message: message,
+      opponentChoice: player2.choice,
+      score: player1.score
+    };
+    const result2 = {
+      message: message,
+      opponentChoice: player1.choice,
+      score: player2.score
+    };
+
   } else if (
     (player1.choice === "Pedra" && player2.choice === "Tesoura") ||
     (player1.choice === "Tesoura" && player2.choice === "Papel") ||
     (player1.choice === "Papel" && player2.choice === "Pedra")
+
   ) {
+    // PLAYER 1 WINS THE ROUND
     player1.score.wins++;
     player2.score.losses++;
+    result1 = {
+      message: `Você venceu! ${player1.choice} derrotou ${player2.choice} de ${player2.name}`,
+      opponentChoice: player2.choice,
+      score: player1.score
+    };
+    result2 = {
+      message: `Você perdeu! ${player2.choice} foi derrotado por ${player1.choice} de ${player1.name}`,
+      opponentChoice: player1.choice,
+      score: player2.score
+    };
+
   } else {
+    // PLAYER 2 WINS THE ROUND
     player2.score.wins++;
     player1.score.losses++;
+    result1 = {
+      message: `Você perdeu! ${player1.choice} foi derrotado por ${player2.choice} de ${player2.name}`,
+      opponentChoice: player2.choice,
+      score: player1.score
+    };
+    result2 = {
+      message: `Você venceu! ${player2.choice} derrotou ${player1.choice} de ${player1.name}`,
+      opponentChoice: player1.choice,
+      score: player2.score
+    };
   }
 
+  
+  // check for a match winner after updating scores
   if (player1.score.wins >= room.winCondition) {
     matchWinner = player1.name;
   } else if (player2.score.wins >= room.winCondition) {
     matchWinner = player2.name;
   }
 
-
-  // RESULT OBJECTS
-  const result1 = {
-    message: getResultMessage(player1, player2, 'You'),
-    opponentChoice: player2.choice,
-    score: player1.score
-  };
-  const result2 = {
-    message: getResultMessage(player2, player1, 'You'),
-    opponentChoice: player1.choice,
-    score: player2.score
-  };
 
   // send result information to players
   io.to(player1Id).emit('gameResult', result1);
@@ -156,17 +184,6 @@ function determineWinner(roomId) {
   } else {
     player1.choice = null;      // reset
     player2.choice = null;
-  }
-}
-
-// HELPER function to generate the result matches messages
-function getResultMessage(player, opponent, selfRef) {
-  if (player.choice === opponent.choice) {
-    return `Empate! Ambos escolheram ${player.choice}`;
-  } else if (player.score.wins > opponent.score.losses) {
-    return `${selfRef} venceu! ${player.choice} derrotou ${opponent.choice} de ${opponent.name}`;
-  } else {
-    return `${selfRef} perdeu! ${player.choice} foi derrotado por ${opponent.choice} de ${opponent.name}`;
   }
 }
 
