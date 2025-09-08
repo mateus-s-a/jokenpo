@@ -62,16 +62,33 @@ io.on('connection', (socket) => {
 
   socket.on('playerChoice', (choice) => {
     const roomId = Array.from(socket.rooms).find(r => r.startsWith('room_'));
+    const room = rooms[roomId];
     if (!roomId || !rooms[roomId]) return;
 
-    rooms[roomId].players[socket.id].choice = choice;
-    console.log(`Player ${socket.id} in room ${roomId} chose ${choice}`);
+    if (room.players[socket.id].choice) {
+      return;
+    }
 
-    const room = rooms[roomId];
-    const players = Object.values(room.players);
+    room.players[socket.id].choice = choice;
+    console.log(`Player ${room.players[socket.id].name} in room ${roomId} chose ${choice}`);
+    
+    const playersWithChoice = Object.values(room.players).filter(p => p.choice !== null);
+    
+    if (playersWithChoice.length === 1) {
+      const opponentId = Object.keys(room.players).find(id => id !== socket.id);
+      if (opponentId) {
+        io.to(opponentId).emit('opponentHasChosen');
+      }
 
-    if (players.length === 2 && players.every(p => p.choice !== null)) {
-      console.log(`Room ${roomId}: Both players chose. Determining winner...`);
+      room.turnTimer = setTimeout(() => {
+        handleTimeout(roomId, socket.id);
+      }, 5000);
+
+    } else if (playersWithChoice.length === 2) {
+      if (room.turnTimer) {
+        clearTimeout(room.turnTimer);
+        room.turnTimer = null;
+      }
       determineWinner(roomId);
     }
   });
@@ -87,6 +104,7 @@ io.on('connection', (socket) => {
     }
   });
 });
+
 
 
 function findAvailableRoom(gameMode) {
@@ -155,6 +173,52 @@ function determineWinner(roomId) {
   } else {
     player1.choice = null;      // reset
     player2.choice = null;
+  }
+}
+
+// handleTimeout
+function handleTimeout(roomId, winnerId) {
+  const room = rooms[roomId];
+  if (!room) return;
+
+  const loserId = Object.keys(room.players).find(id => id !== winnerId);
+  if (!loserId) return;
+
+  const winner = room.players[winnerId];
+  const loser = room.players[loserId];
+
+  winner.score.wins++;
+  loser.score.losses++;
+
+
+  const winnerResult = {
+    message: `Você venceu! ${loser.name} ficou sem tempo`,
+    opponentChoice: 'None',
+    score: winner.score
+  };
+  const loserResult = {
+    message: `Você perdeu! Você ficou sem tempo`,
+    opponentChoice: winner.choice,
+    score: loser.score
+  };
+
+  io.to(winnerId).emit('gameResult', winnerResult);
+  io.to(loserId).emit('gameResult', loserResult);
+  console.log(`Room ${roomId}: ${loser.name} timed out`);
+
+
+  let matchWinner = null;
+  if (winner.score.wins >= room.winCondition) {
+    matchWinner = winner.name;
+  }
+
+  if (matchWinner) {
+    io.to(roomId).emit('matchOver', { winnerName: matchWinner });
+    
+    delete rooms[roomId];
+  } else {
+    winner.choice = null;
+    loser.choice = null;
   }
 }
 

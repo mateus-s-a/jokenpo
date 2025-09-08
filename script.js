@@ -64,10 +64,12 @@ btn_papel.addEventListener('click', () => {
 
 
 // --- SERVER EVENTS LISTENERS ---
+// waitingForPlayer
 socket.on('waitingForPlayer', () => {
   mensagemTexto.textContent = 'Aguardando conexão com outro adversário...';
 });
 
+// gameStart
 socket.on('gameStart', (data) => {
   const myName = playerNameInput.value.trim();
   const opponentName = data.playerNames.find(name => name !== myName);
@@ -78,11 +80,17 @@ socket.on('gameStart', (data) => {
   gameDiv.style.display = 'flex';         // show game controls when players connected
 });
 
+// opponentHasChosen
+socket.on('opponentHasChosen', () => {
+  mensagemTexto.textContent = 'Adversário escolheu, você tem 5 segundos';
+});
+
 
 const choiceToEmoji = {
   "Tesoura": "✂️",
   "Pedra": "🪨",
-  "Papel": "📃"
+  "Papel": "📃",
+  "None": "⏰"
 };
 
 // gameResult
