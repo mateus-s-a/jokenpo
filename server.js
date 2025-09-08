@@ -96,9 +96,10 @@ function findAvailableRoom(gameMode) {
   );
 }
 
+// determineWinner
 function determineWinner(roomId) {
   const room = rooms[roomId];
-  if (!room) return;                // when room been deleted on 'disconnect' handler
+  if (!room) return;              // when room been deleted on 'disconnected' handler
 
   const playerIds = Object.keys(room.players);
   const player1Id = playerIds[0];
@@ -108,78 +109,48 @@ function determineWinner(roomId) {
   
   let result1, result2;
   let matchWinner = null;
-  
-  // main logic of the game
+
+  // main logic of the GAME
   if (player1.choice === player2.choice) {
     player1.score.ties++;
     player2.score.ties++;
     const message = `Empate! Ambos escolheram ${player1.choice}`;
-    const result1 = {
-      message: message,
-      opponentChoice: player2.choice,
-      score: player1.score
-    };
-    const result2 = {
-      message: message,
-      opponentChoice: player1.choice,
-      score: player2.score
-    };
-
+    result1 = { message: message, opponentChoice: player2.choice, score: player1.score };
+    result2 = { message: message, opponentChoice: player1.choice, score: player2.score };
   } else if (
     (player1.choice === "Pedra" && player2.choice === "Tesoura") ||
     (player1.choice === "Tesoura" && player2.choice === "Papel") ||
     (player1.choice === "Papel" && player2.choice === "Pedra")
-
   ) {
     // PLAYER 1 WINS THE ROUND
     player1.score.wins++;
     player2.score.losses++;
-    result1 = {
-      message: `Você venceu! ${player1.choice} derrotou ${player2.choice} de ${player2.name}`,
-      opponentChoice: player2.choice,
-      score: player1.score
-    };
-    result2 = {
-      message: `Você perdeu! ${player2.choice} foi derrotado por ${player1.choice} de ${player1.name}`,
-      opponentChoice: player1.choice,
-      score: player2.score
-    };
-
+    result1 = { message: `Você venceu! ${player1.choice} derrotou ${player2.choice} de ${player2.name}`, opponentChoice: player2.choice, score: player1.score };
+    result2 = { message: `Você perdeu! ${player2.choice} foi derrotado por ${player1.choice} de ${player1.name}`, opponentChoice: player1.choice, score: player2.score };
   } else {
     // PLAYER 2 WINS THE ROUND
     player2.score.wins++;
     player1.score.losses++;
-    result1 = {
-      message: `Você perdeu! ${player1.choice} foi derrotado por ${player2.choice} de ${player2.name}`,
-      opponentChoice: player2.choice,
-      score: player1.score
-    };
-    result2 = {
-      message: `Você venceu! ${player2.choice} derrotou ${player1.choice} de ${player1.name}`,
-      opponentChoice: player1.choice,
-      score: player2.score
-    };
+    result1 = { message: `Você perdeu! ${player1.choice} foi derrotado por ${player2.choice} de ${player2.name}`, opponentChoice: player2.choice, score: player1.score };
+    result2 = { message: `Você venceu! ${player2.choice} derrotou ${player1.choice} de ${player1.name}`, opponentChoice: player1.choice, score: player2.score };
   }
 
-  
   // check for a match winner after updating scores
   if (player1.score.wins >= room.winCondition) {
     matchWinner = player1.name;
   } else if (player2.score.wins >= room.winCondition) {
     matchWinner = player2.name;
   }
-
-
+  
   // send result information to players
   io.to(player1Id).emit('gameResult', result1);
   io.to(player2Id).emit('gameResult', result2);
-  console.log(`Room ${roomId} round result sent...`);
-
+  console.log(`Room ${roomId} round result sent.`);
 
   if (matchWinner) {
     io.to(roomId).emit('matchOver', { winnerName: matchWinner });
     console.log(`Match over in room ${roomId}. Winner: ${matchWinner}`);
-
+    
     delete rooms[roomId];       // clean room
   } else {
     player1.choice = null;      // reset
