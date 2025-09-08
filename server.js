@@ -41,8 +41,8 @@ io.on('connection', (socket) => {
       socket.roomId = roomId;
 
       let winCondition = Infinity;
-      if (gameMode === 'bo3') winCondition = 3;
-      if (gameMode === 'bo5') winCondition = 5;
+      if (gameMode === 'bo3') winCondition = 2;
+      if (gameMode === 'bo5') winCondition = 3;
 
       rooms[roomId] = {                   // create the room with player and score
         mode: gameMode,                   // store the game mode
@@ -77,6 +77,7 @@ io.on('connection', (socket) => {
     
     if (playersWithChoice.length === 1) {
       const opponentId = Object.keys(room.players).find(id => id !== socket.id);
+      
       if (opponentId) {
         io.to(opponentId).emit('opponentHasChosen');
       }
@@ -99,8 +100,14 @@ io.on('connection', (socket) => {
     
     const roomId = socket.roomId;
     if (roomId && rooms[roomId]) {
-      delete rooms[roomId];
+      
+      if (rooms[roomId].turnTimer) {
+        clearTimeout(rooms[roomId].turnTimer);
+        console.log(`Cleared pending timer for room ${roomId}`);
+      }
+
       io.to(roomId).emit('opponentDisconnected');
+      delete rooms[roomId];
       console.log(`Room ${roomId} was closed`);
     }
   });
