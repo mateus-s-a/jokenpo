@@ -7,7 +7,7 @@ const findGameBtn = document.querySelector('.find-game-btn');
 const gameDiv = document.querySelector('.caixa');
 const mensagemTexto = document.querySelector('.mensagem');
 const resultadoTexto = document.querySelector('.resultado');
-const opponentNameText = document.querySelector('.cx_resultado p');
+const opponentNameText = document.querySelector('#opponentNameText');
 
 // game btns
 const btn_tesoura = document.querySelector('.tesoura');
@@ -119,14 +119,14 @@ socket.on('matchOver', (data) => {
   btn_pedra.disabled = true;
   btn_papel.disabled = true;
 
-  const playAgainBtn = document.createElement('button');
-  playAgainBtn.textContent = 'Revanche';
-  playAgainBtn.className = 'find-game-btn';   // reuse the same style
-  playAgainBtn.onclick = () => window.location.reload();
+  const backToMenuBtn = document.createElement('button');
+  backToMenuBtn.textContent = 'Sair';
+  backToMenuBtn.className = 'find-game-btn btn btn-success btn-lg mt-3' ;   // reuse the same style
+  backToMenuBtn.onclick = () => window.location.reload();
 
   setTimeout(() => {    // brief delay to show the play again button
     mensagemTexto.appendChild(document.createElement('br'));
-    mensagemTexto.appendChild(playAgainBtn);
+    mensagemTexto.appendChild(backToMenuBtn);
   }, 2000);
 });
 
@@ -136,4 +136,5 @@ socket.on('opponentDisconnected', () => {
   gameDiv.style.display = 'none';               // hide game
   matchmakingDiv.style.display = 'block';       // show again matchmaking
   findGameBtn.disabled = false;
+  playerNameInput.disabled = false;
 });
