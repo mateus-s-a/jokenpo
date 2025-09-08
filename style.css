@@ -151,8 +151,7 @@ div .inf3 {
 div .inf2,
 div .inf3 {
     border-left: 1px solid;
-} 
-
+}
 
 
 /* ANIMAÇÃO */
@@ -196,4 +195,48 @@ div .inf3 {
 
 .reveal-anim {
     animation: revealChoice 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+
+/* DESIGN RESPONSIVO PARA TELAS PEQUENAS */
+@media (max-width: 600px) {
+    .titulo h1 {
+        font-size: 50px;
+        letter-spacing: 4px;
+    }
+
+    .titulo h6 {
+        font-size: 20px;
+    }
+
+    .caixa {
+        flex-direction: column;
+        align-items: center;
+        gap: 30px;
+    }
+
+    .cx_escolha span {
+        font-size: 80px;
+    }
+
+    .cx_resultado {
+        max-width: none;
+    }
+
+    .mensagem {
+        font-size: 28px;
+        margin-top: 30px;
+        padding: 0 10px;
+    }
+
+    .cx_inf {
+        font-size: 16px;
+    }
+
+    .matchmaking {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+    }
 }
