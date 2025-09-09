@@ -25,6 +25,13 @@ body {
     transition: transform 0.2s;
 }
 
+.exit-btn-container {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    z-index: 1050;
+}
+
 
 @keyframes iluminosidadeTitulo {
     0% {

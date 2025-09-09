@@ -8,6 +8,8 @@ const gameDiv = document.querySelector('.caixa');
 const mensagemTexto = document.querySelector('.mensagem');
 const resultadoTexto = document.querySelector('.resultado');
 const opponentNameText = document.querySelector('#opponentNameText');
+const exitBtnContainer = document.querySelector('.exit-btn-container');
+const exitGameBtn = document.querySelector('#exitGameBtn');
 
 // game btns
 const btn_tesoura = document.querySelector('.tesoura');
@@ -69,6 +71,7 @@ socket.on('waitingForPlayer', () => {
   mensagemTexto.textContent = 'Aguardando conexão com outro adversário...';
 });
 
+
 // gameStart
 socket.on('gameStart', (data) => {
   const myName = playerNameInput.value.trim();
@@ -78,7 +81,18 @@ socket.on('gameStart', (data) => {
   mensagemTexto.textContent = 'Adversário encontrado. Faça sua escolha.';
   matchmakingDiv.style.display = 'none';  // hide matchmaking button
   gameDiv.style.display = 'flex';         // show game controls when players connected
+  exitBtnContainer.style.display = 'block';
 });
+
+exitGameBtn.addEventListener('click', () => {
+  const confirmed = window.confirm("Você tem certeza que deseja sair? Isso contará como uma derrota.");
+  if (confirmed) {
+    socket.emit('playerForfeit');
+    window.location.reload();
+  }
+});
+
+
 
 // opponentHasChosen
 socket.on('opponentHasChosen', () => {
@@ -110,6 +124,27 @@ socket.on('gameResult', (result) => {             // listening to gameResult
   }
 });
 
+// opponentForfeited: when a player leaves the match by clicking the exit button
+socket.on('opponentForfeited', (data) => {
+  mensagemTexto.textContent = 'Seu oponent saiu. Você venceu!';
+  resultadoTexto.textContent = '🔌';
+
+  btn_tesoura.disabled = true;
+  btn_pedra.disabled = true;
+  btn_papel.disabled = true;
+  exitGameBtn.disabled = true;
+
+  const backToMenuBtn = document.createElement('button');
+  backToMenuBtn.textContent = 'Voltar ao Menu';
+  backToMenuBtn.className = 'find-game-btn btn btn-success btn-lg mt-3';
+  backToMenuBtn.onclick = () => window.location.reload();
+
+  setTimeout(() => {
+    mensagemTexto.appendChild(document.createElement('br'));
+    mensagemTexto.appendChild(backToMenuBtn);
+  }, 2000);
+});
+
 
 // matchOver
 socket.on('matchOver', (data) => {
@@ -118,6 +153,8 @@ socket.on('matchOver', (data) => {
   btn_tesoura.disabled = true;    // disable game buttons
   btn_pedra.disabled = true;
   btn_papel.disabled = true;
+  exitGameBtn.disabled = true;
+  
 
   const backToMenuBtn = document.createElement('button');
   backToMenuBtn.textContent = 'Sair';
@@ -134,7 +171,7 @@ socket.on('matchOver', (data) => {
 socket.on('opponentDisconnected', () => {
   mensagemTexto.textContent = 'Adversário saiu. Encontre um novo jogo.';
   gameDiv.style.display = 'none';               // hide game
-  matchmakingDiv.style.display = 'block';       // show again matchmaking
+  matchmakingDiv.style.display = 'flex';       // show again matchmaking
   findGameBtn.disabled = false;
   playerNameInput.disabled = false;
 });

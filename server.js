@@ -13,6 +13,7 @@ app.use(express.static(path.join(__dirname, 'public')));    // pointing to 'publ
 
 
 let rooms = {};
+let activeTimers = {};
 
 
 io.on('connection', (socket) => {
@@ -98,6 +99,12 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`A user disconnected: ${socket.id}`);
     
+    if (activeTimers[socket.id]) {
+      clearTimeout(activeTimers[socket.id]);
+      delete activeTimers[socket.id];
+      console.log(`Cleared timer for disconnected user ${socket.id}`);
+    }
+    
     const roomId = socket.roomId;
     if (roomId && rooms[roomId]) {
       
@@ -111,13 +118,39 @@ io.on('connection', (socket) => {
       console.log(`Room ${roomId} was closed`);
     }
   });
+
+  socket.on('playerForfeit', () => {
+    const roomId = socket.roomId;
+    const room = rooms[roomId];
+
+    if (!room) return;
+
+    const loserId = socket.id;
+    const winnerId = Object.keys(room.players).find(id => id !== loserId);
+
+    if (winnerId) {
+      const winner = room.players[winnerId];
+      io.to(winnerId).emit('opponentForfeited', { winnerName: winner.name });
+      /*io.to(roomId).emit('matchOver', { winnerName: winner.name });*/
+      console.log(`Match over in room ${roomId}. Winner by forfeit: ${winner.name}`);
+    }
+
+    Object.keys(room.players).forEach(id => {
+      if (activeTimers[id]) {
+        clearTimeout(activeTimers[id]);
+        delete activeTimers[id];
+      }
+    });
+
+    delete rooms[roomId];     // clean up the last room
+  });
 });
 
 
 
 function findAvailableRoom(gameMode) {
   return Object.keys(rooms).find(roomId =>
-    rooms[roomId].mode === gameMode && 
+    rooms[roomId].mode === gameMode &&
     Object.keys(rooms[roomId].players).length === 1
   );
 }
@@ -186,6 +219,10 @@ function determineWinner(roomId) {
 
 // handleTimeout
 function handleTimeout(roomId, winnerId) {
+  if (activeTimers[winnerId]) {
+    delete activeTimers[winnerId];
+  }
+  
   const room = rooms[roomId];
   if (!room) return;
 
