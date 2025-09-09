@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const { emit } = require('process');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,259 +14,165 @@ app.use(express.static(path.join(__dirname, 'public')));    // pointing to 'publ
 
 
 let rooms = {};
-let activeTimers = {};
+
+const broadcastRoomList = () => {               // function to sends the updated room list to all players
+  const publicRooms = Object.values(rooms)
+    .filter(room => !room.settings.hasPassword && Object.keys(room.players).length < 2)
+    .map(room => ({
+      id: room.id,
+      name: room.name,
+      playerCount: Object.keys(room.players).length
+    }));
+  
+  io.emit('roomListUpdate', publicRooms);
+};
+
+const broadcastLobbyUpdate = (roomId) => {
+  const room = rooms[roomId];
+  if (!room) return;
+
+  Object.keys(room.players).forEach(playerId => {
+    const isHost = room.host.id === playerId;
+    io.to(playerId).emit('lobbyUpdate', {
+      room: { name: room.name, settings: room.settings },
+      players: Object.entries(room.players).map(([id, player]) => ({...player, id})),
+      isHost: isHost,
+      myId, playerId
+    });
+  });
+};
+
+const generatePassword = () => {
+  return Math.random().toString(36).substring(2, 6).toUpperCase();
+};
 
 
+
+// MAIN CONNECTION
 io.on('connection', (socket) => {
   console.log(`A user connected: ${socket.id}`);
 
-  socket.on('findGame', (data) => {           // handler type
-    const { playerName, gameMode } = data;
-    let roomId = findAvailableRoom(gameMode);
+  broadcastRoomList();; // sent current list of rooms
 
-    if (roomId) {
-      socket.join(roomId);                // joining existing room
-      socket.roomId = roomId;
-      rooms[roomId].players[socket.id] = {
-        name: playerName,
-        choice: null,
-        score: { wins: 0, losses: 0, ties: 0 }
-      };
-      
-      console.log(`Player ${playerName} (${socket.id}) joined room ${roomId}`);
-      
-      const playerNames = Object.values(rooms[roomId].players).map(p => p.name);
-      io.to(roomId).emit('gameStart', { playerNames });                         // notify game started & show player names for each other
-    } else {
-      roomId = `room_${socket.id}`;       // create new room
-      socket.join(roomId);
-      socket.roomId = roomId;
+  socket.on('createRoom', (data) => {                   // listener for the player creating a room
+    const { playerName } = data;
+    const roomId = `room+${socket.id}`;
 
-      let winCondition = Infinity;
-      if (gameMode === 'bo3') winCondition = 2;
-      if (gameMode === 'bo5') winCondition = 3;
-
-      rooms[roomId] = {                   // create the room with player and score
-        mode: gameMode,                   // store the game mode
-        winCondition: winCondition,
-        players: {
-          [socket.id]: {
-            name: playerName,             // store player's name
-            choice: null,
-            score: { wins: 0, losses: 0, ties: 0 }
-          }
+    rooms[roomId] = {
+      id: roomId,
+      name: `${playerName}'s Room`,
+      host: { id: socket.id, name: playerName },
+      players: {
+        [socket.id]: {
+          name: playerName,
+          isReady: false
         }
-      };
-      
-      console.log(`Player ${playerName} (${socket.id}) created and joined room ${roomId}`);
-      socket.emit('waitingForPlayer');
-    }
+      },
+      settings: {
+        mode: 'infinite',
+        timer: 5,
+        hasPassword: false,
+        password: null
+      },
+      state: 'waiting'        // will be 'waiting' or 'playing'
+    };
+
+    socket.join(roomId);
+    console.log(`Player ${playerName} created and joined room ${roomId}`);
+
+    broadcastLobbyUpdate(roomId);   // send the host to the "lobby" view
+
+    broadcastRoomList();
   });
 
-  socket.on('playerChoice', (choice) => {
-    const roomId = Array.from(socket.rooms).find(r => r.startsWith('room_'));
+  socket.on('joinRoom', (data) => {
+    const { roomId, playerName } = data;
     const room = rooms[roomId];
-    if (!roomId || !rooms[roomId]) return;
 
-    if (room.players[socket.id].choice) {
-      return;
+    if (!room) {
+      return socket.emit('joinRoomError', { message: 'Sala não existe' });
+    }
+    if (Object.keys(room.players).length >= 2) {
+      return socket.emit('joinRoomError', { message: 'Sala cheia' });
     }
 
-    room.players[socket.id].choice = choice;
-    console.log(`Player ${room.players[socket.id].name} in room ${roomId} chose ${choice}`);
-    
-    const playersWithChoice = Object.values(room.players).filter(p => p.choice !== null);
-    
-    if (playersWithChoice.length === 1) {
-      const opponentId = Object.keys(room.players).find(id => id !== socket.id);
-      
-      if (opponentId) {
-        io.to(opponentId).emit('opponentHasChosen');
-      }
+    socket.join(roomId);
+    socket.roomId = roomId;
+    room.players[socket.id] = {
+      name: playerName,
+      isReady: false
+    };
 
-      room.turnTimer = setTimeout(() => {
-        handleTimeout(roomId, socket.id);
-      }, 5000);
+    console.log(`Player ${playerName} (${socket.id}) joined room ${roomId}`);
 
-    } else if (playersWithChoice.length === 2) {
-      if (room.turnTimer) {
-        clearTimeout(room.turnTimer);
-        room.turnTimer = null;
-      }
-      determineWinner(roomId);
+    broadcastRoomList();
+
+    const playerNames = Object.values(room.players).map(p => p.name);
+    broadcastLobbyUpdate(roomId);
+  });
+
+  socket.on('deleteRoom', () => {
+    const roomId = socket.roomId;
+    if (rooms[roomId] && rooms[roomId].host.id === socket.id) {
+      io.to(roomId).emit('roomClosed');
+      delete rooms[roomId];
+      broadcastRoomList();
+      console.log(`Room ${roomId} deleted by host`);
     }
   });
 
+  socket.on('playerToggleReady', () => {
+    const roomId = socket.roomId;
+    const room = rooms[roomId];
+    if (room && room.players[socket.id]) {
+      const player = room.players[socket.id];
+      player.isReady = !player.isReady;
+
+      const players = Object.values(room.players);    // check if game can start
+      if (players.length === 2 && players.every(p => p.isReady)) {
+        console.log(`Game starting in room ${roomId}`);
+        room.state = 'playing';
+        broadcastRoomList();        // room no longer public
+        io.to(roomId).emit('gameStarting');           // tell players the game is starting
+      } else {
+        broadcastLobbyUpdate(roomId);
+      }
+    }
+  });
+  
   socket.on('disconnect', () => {
     console.log(`A user disconnected: ${socket.id}`);
-    
-    if (activeTimers[socket.id]) {
-      clearTimeout(activeTimers[socket.id]);
-      delete activeTimers[socket.id];
-      console.log(`Cleared timer for disconnected user ${socket.id}`);
-    }
-    
     const roomId = socket.roomId;
+
     if (roomId && rooms[roomId]) {
-      
-      if (rooms[roomId].turnTimer) {
-        clearTimeout(rooms[roomId].turnTimer);
-        console.log(`Cleared pending timer for room ${roomId}`);
+      delete rooms[roomId].players[socket.id];    // remove the player from the room
+      console.log(`Player ${socket.id} removed from room ${roomId}`);
+
+      if (Object.keys(rooms[roomId].players).length === 0) {    // if room empty, delete it
+        delete rooms[roomId];
+        console.log(`Room ${roomId} was empty and has been deleted`);
+
+      } else {
+        if (rooms[roomId].host.id === socket.id) {    // if host disconnects, other player mainting a host
+          const newHostId = Object.keys(rooms[roomId].players)[0];
+          rooms[roomId].host = {
+            id: newHostId,
+            name: rooms[roomId].players[newHostId].name
+          };
+
+          console.log(`New host for room ${roomId} is ${rooms[roomId].host.name}`);
+        }
+
+        io.to(roomId).emit('opponentLeft');   // notify remaining player
       }
-
-      io.to(roomId).emit('opponentDisconnected');
-      delete rooms[roomId];
-      console.log(`Room ${roomId} was closed`);
-    }
-  });
-
-  socket.on('playerForfeit', () => {
-    const roomId = socket.roomId;
-    const room = rooms[roomId];
-
-    if (!room) return;
-
-    const loserId = socket.id;
-    const winnerId = Object.keys(room.players).find(id => id !== loserId);
-
-    if (winnerId) {
-      const winner = room.players[winnerId];
-      io.to(winnerId).emit('opponentForfeited', { winnerName: winner.name });
-      /*io.to(roomId).emit('matchOver', { winnerName: winner.name });*/
-      console.log(`Match over in room ${roomId}. Winner by forfeit: ${winner.name}`);
+      broadcastLobbyUpdate(roomId);
     }
 
-    Object.keys(room.players).forEach(id => {
-      if (activeTimers[id]) {
-        clearTimeout(activeTimers[id]);
-        delete activeTimers[id];
-      }
-    });
-
-    delete rooms[roomId];     // clean up the last room
+    broadcastRoomList();    // update room list
   });
 });
 
 
-
-function findAvailableRoom(gameMode) {
-  return Object.keys(rooms).find(roomId =>
-    rooms[roomId].mode === gameMode &&
-    Object.keys(rooms[roomId].players).length === 1
-  );
-}
-
-// determineWinner
-function determineWinner(roomId) {
-  const room = rooms[roomId];
-  if (!room) return;              // when room been deleted on 'disconnected' handler
-
-  const playerIds = Object.keys(room.players);
-  const player1Id = playerIds[0];
-  const player2Id = playerIds[1];
-  const player1 = room.players[player1Id];
-  const player2 = room.players[player2Id];
-  
-  let result1, result2;
-  let matchWinner = null;
-
-  // main logic of the GAME
-  if (player1.choice === player2.choice) {
-    player1.score.ties++;
-    player2.score.ties++;
-    const message = `Empate! Ambos escolheram ${player1.choice}`;
-    result1 = { message: message, opponentChoice: player2.choice, score: player1.score };
-    result2 = { message: message, opponentChoice: player1.choice, score: player2.score };
-  } else if (
-    (player1.choice === "Pedra" && player2.choice === "Tesoura") ||
-    (player1.choice === "Tesoura" && player2.choice === "Papel") ||
-    (player1.choice === "Papel" && player2.choice === "Pedra")
-  ) {
-    // PLAYER 1 WINS THE ROUND
-    player1.score.wins++;
-    player2.score.losses++;
-    result1 = { message: `Você venceu! ${player1.choice} derrotou ${player2.choice} de ${player2.name}`, opponentChoice: player2.choice, score: player1.score };
-    result2 = { message: `Você perdeu! ${player2.choice} foi derrotado por ${player1.choice} de ${player1.name}`, opponentChoice: player1.choice, score: player2.score };
-  } else {
-    // PLAYER 2 WINS THE ROUND
-    player2.score.wins++;
-    player1.score.losses++;
-    result1 = { message: `Você perdeu! ${player1.choice} foi derrotado por ${player2.choice} de ${player2.name}`, opponentChoice: player2.choice, score: player1.score };
-    result2 = { message: `Você venceu! ${player2.choice} derrotou ${player1.choice} de ${player1.name}`, opponentChoice: player1.choice, score: player2.score };
-  }
-
-  // check for a match winner after updating scores
-  if (player1.score.wins >= room.winCondition) {
-    matchWinner = player1.name;
-  } else if (player2.score.wins >= room.winCondition) {
-    matchWinner = player2.name;
-  }
-  
-  // send result information to players
-  io.to(player1Id).emit('gameResult', result1);
-  io.to(player2Id).emit('gameResult', result2);
-  console.log(`Room ${roomId} round result sent.`);
-
-  if (matchWinner) {
-    io.to(roomId).emit('matchOver', { winnerName: matchWinner });
-    console.log(`Match over in room ${roomId}. Winner: ${matchWinner}`);
-    
-    delete rooms[roomId];       // clean room
-  } else {
-    player1.choice = null;      // reset
-    player2.choice = null;
-  }
-}
-
-// handleTimeout
-function handleTimeout(roomId, winnerId) {
-  if (activeTimers[winnerId]) {
-    delete activeTimers[winnerId];
-  }
-  
-  const room = rooms[roomId];
-  if (!room) return;
-
-  const loserId = Object.keys(room.players).find(id => id !== winnerId);
-  if (!loserId) return;
-
-  const winner = room.players[winnerId];
-  const loser = room.players[loserId];
-
-  winner.score.wins++;
-  loser.score.losses++;
-
-
-  const winnerResult = {
-    message: `Você venceu! ${loser.name} ficou sem tempo`,
-    opponentChoice: 'None',
-    score: winner.score
-  };
-  const loserResult = {
-    message: `Você perdeu! Você ficou sem tempo`,
-    opponentChoice: winner.choice,
-    score: loser.score
-  };
-
-  io.to(winnerId).emit('gameResult', winnerResult);
-  io.to(loserId).emit('gameResult', loserResult);
-  console.log(`Room ${roomId}: ${loser.name} timed out`);
-
-
-  let matchWinner = null;
-  if (winner.score.wins >= room.winCondition) {
-    matchWinner = winner.name;
-  }
-
-  if (matchWinner) {
-    io.to(roomId).emit('matchOver', { winnerName: matchWinner });
-    
-    delete rooms[roomId];
-  } else {
-    winner.choice = null;
-    loser.choice = null;
-  }
-}
 
 
 
