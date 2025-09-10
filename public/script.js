@@ -6,8 +6,8 @@ const gameContainer = document.querySelector('#game-container');
 const playerNameInput = document.querySelector('#playerNameInput');
 const createRoomBtn = document.querySelector('#createRoomBtn');
 const roomList = document.querySelector('#room-list');
-const noRoomMsg = document.querySelector('#no-rooms-msg');
-
+const noRoomsMsg = document.querySelector('#no-rooms-msg');
+//const exitBtnContainer = document.querySelector('')
 
 
 // EVENT LISTENERS
@@ -24,37 +24,19 @@ createRoomBtn.addEventListener('click', () => {
 
 
 // SOCKET LISTENERS
-socket.on('roomListUpdate', (rooms) => {
-  updateRoomList(rooms);
-});
+socket.on('roomListUpdate', (rooms) => { updateRoomList(rooms); });
 
-socket.on('joinRoomError', (data) => {      // if entering the room fails
-  alert(data.message);
-});
+socket.on('lobbyUpdate', (data) => { renderLobby(data); });
 
-socket.on('lobbyUpdate', (data) => {
-  renderLobby(data);
-});
+socket.on('joinRoomError', (data) => { alert(data.message); }); // if entering the room fails
 
-socket.on('roomClosed', () => {
-  alert('O host fechou a sala');
-  window.location.reload();
-});
-
-socket.on('kicked', () => {
-  alert("Você foi expulso da sala do host")/
-  window.location.reload();
-});
-
-/*socket.on('gameStarting', () => {
-  gameContainer.innerHTML = `<h1 class="text-center mt-5"Jogo Iniciando></h1>`;
-})*/
 socket.on('navigateToGame', (data) => {
   let count = 3;
   gameContainer.innerHTML = `<h1 class="text-center mt-5 display-1">Começando em ${count}...</h1>`;
 
   const countdownInterval = setInterval(() => {
     count--;
+    console.log("a");
     if (count > 0) {
       gameContainer.innerHTML = `<h1 class="text-center mt-5 display-1">Começando em ${count}...</h1>`;
     } else {
@@ -64,15 +46,65 @@ socket.on('navigateToGame', (data) => {
   }, 1000);
 });
 
+socket.on('roomClosed', () => {
+  alert('O host fechou a sala');
+  window.location.reload();
+});
+
+socket.on('kicked', () => {
+  alert("Você foi expulso da sala do host");
+  window.location.reload();
+});
+
+socket.on('opponentHasChosen', () => {
+  document.querySelector('.mensagem').textContent = 'Adversário escolheu, você tem 5 segundos';
+});
+
+socket.on('gameResult', (result) => {
+  const choiceToEmoji = {
+    "Tesoura": "✂️",
+    "Pedra": "🪨",
+    "Papel": "📃",
+    "None": "⏰"
+  };
+
+  document.querySelector('.mensagem').textContent = result.message;
+
+  const resultadoTexto = document.querySelector('.resultado');
+  resultadoTexto.textContent = choiceToEmoji[result.opponentChoice] || '';
+  resultadoTexto.classList.remove('reveal-anim');
+  void resultadoTexto.offsetWidth;
+  resultadoTexto.classList.add('reveal-anim');
+
+  if (result.score) {
+    document.querySelector('.n1').innerHTML = result.score.wins;
+    document.querySelector('.n2').innerHTML = result.score.losses;
+    document.querySelector('.n3').innerHTML = result.score.ties;
+  }
+});
+
+socket.on('matchOver', (data) => {
+
+});
+
+socket.on('opponentForfeited', (data) => {
+
+});
+
+socket.on('opponentDisconnected', () => {
+
+});
+
+
 
 // HELPER FUNCTIONS (UTILS FUNCTIONS)
 function updateRoomList(rooms) {
   roomList.innerHTML = '';
 
   if (rooms.length === 0) {
-    noRoomMsg.style.display = 'block';
+    noRoomsMsg.style.display = 'block';
   } else {
-    noRoomMsg.style.display = 'none';
+    noRoomsMsg.style.display = 'none';
     rooms.forEach(room => {
       const roomElement = document.createElement('a');
       roomElement.href = '#';
@@ -102,6 +134,9 @@ function joinRoom(roomId) {
 
 // renderLobby FUNCTION
 function renderLobby(data) {
+  mainMenu.style.display = 'none';
+  gameContainer.style.display = 'block';
+  
   const { room, players, isHost, myId } = data;
   const me = players.find(p => p.id === myId);
   const opponent = players.find(p => p.id !== myId);
@@ -200,7 +235,7 @@ function renderLobby(data) {
 
   if (isHost) {
     document.getElementById('deleteRoomBtn').addEventListener('click', () => {
-      if (confirm('Tem certeza que deseja deletar sua sala?')); {
+      if (confirm('Tem certeza que deseja deletar sua sala?')) {
         socket.emit('deleteRoom');
         window.location.reload();
       }
@@ -213,6 +248,8 @@ function renderLobby(data) {
         timer: parseInt(document.getElementById('timerSelect').value, 10),
         hasPassword: document.getElementById('passwordSwitch').checked
       };
+
+      socket.emit('updateSettings', newSettings);
     });
 
     if (room.settings.hasPassword) {
@@ -238,7 +275,7 @@ function renderGameView(data) {
   const opponent = players.find(p => p.name !== myName);
 
   document.querySelector('.cx_inf').style.display = 'block';
-  document.querySelector('.exit-btn-container').style.display = 'block';
+  //document.querySelector('.exit-btn-container').style.display = 'block';
 
   gameContainer.innerHTML = `
     <div class="container">
