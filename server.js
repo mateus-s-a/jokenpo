@@ -37,7 +37,7 @@ const broadcastLobbyUpdate = (roomId) => {
       room: { name: room.name, settings: room.settings },
       players: Object.entries(room.players).map(([id, player]) => ({...player, id})),
       isHost: isHost,
-      myId, playerId
+      myId: playerId
     });
   });
 };
@@ -56,9 +56,31 @@ io.on('connection', (socket) => {
 
   socket.on('createRoom', (data) => {                   // listener for the player creating a room
     const { playerName } = data;
-    const roomId = `room+${socket.id}`;
+    const roomId = `room_${socket.id}`;
 
     rooms[roomId] = {
+      id: roomId,
+      name: `${playerName}'s Room`,
+      host: {
+        id: socket.id,
+        name: playerName
+      },
+      players: {
+        [socket.id]: {
+          name: playerName,
+          isReady: false
+        }
+      },
+      settings: {
+        mode: 'infinite',
+        timer: 5,
+        hasPassword: false,
+        password: null
+      },
+      state: 'waiting'
+    };
+    
+    /*rooms[roomId] = {
       id: roomId,
       name: `${playerName}'s Room`,
       host: { id: socket.id, name: playerName },
@@ -75,9 +97,10 @@ io.on('connection', (socket) => {
         password: null
       },
       state: 'waiting'        // will be 'waiting' or 'playing'
-    };
+    };*/
 
     socket.join(roomId);
+    socket.roomId = roomId;
     console.log(`Player ${playerName} created and joined room ${roomId}`);
 
     broadcastLobbyUpdate(roomId);   // send the host to the "lobby" view
@@ -133,10 +156,62 @@ io.on('connection', (socket) => {
         console.log(`Game starting in room ${roomId}`);
         room.state = 'playing';
         broadcastRoomList();        // room no longer public
-        io.to(roomId).emit('gameStarting');           // tell players the game is starting
+        //io.to(roomId).emit('gameStarting');
+        io.to(roomId).emit('navigateToGame', {           // tell players the game is starting
+          players: Object.values(room.players),
+          settings: room.settings
+        });
+      
       } else {
         broadcastLobbyUpdate(roomId);
       }
+    }
+  });
+
+  socket.on('updateSettings', (newSettings) => {      // listen for host updating room properties settings
+    const roomId = socket.roomId;
+    const room = rooms[roomId];
+    if (room && room.host.id === socket.id) {
+      room.name = newSettings.name;
+      room.settings.mode = newSettings.mode;
+      room.settings.timer = newSettings.timer;
+
+      // the handler of password enable/disable
+      if (newSettings.hasPassword && !room.settings.hasPassword) {
+        room.settings.password = generatePassword();
+      } else if (!newSettings.hasPassword) {
+        room.settings.password = null;
+      }
+      room.settings.hasPassword = newSettings.hasPassword;
+
+      broadcastLobbyUpdate(roomId);
+      broadcastRoomList();            // update public list in case name/password changed
+    }
+  });
+
+  socket.on('generateNewPassword', () => {
+    const roomId = socket.roomId;
+    const room = rooms[roomId];
+    if (room && room.host.id === socket.id && room.settings.hasPassword) {
+      room.settings.password = generatePassword();
+      broadcastLobbyUpdate(roomId);
+    }
+  });
+
+  socket.on('kickPlayer', (data) => {
+    const roomId = socket.roomId;
+    const room = rooms[roomId];
+    if (room && room.host.id === socket.id) {
+      const kickedPlayerSocket = io.sockets.sockets.get(data.playerId);
+
+      if (kickedPlayerSocket) {
+        kickedPlayerSocket.emit('kicked');
+        kickedPlayerSocket.leave(roomId);
+      }
+
+      delete room.players[data.playerId];
+      broadcastLobbyUpdate(roomId);
+      broadcastRoomList();
     }
   });
   

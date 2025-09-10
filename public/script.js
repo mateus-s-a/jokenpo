@@ -41,6 +41,29 @@ socket.on('roomClosed', () => {
   window.location.reload();
 });
 
+socket.on('kicked', () => {
+  alert("Você foi expulso da sala do host")/
+  window.location.reload();
+});
+
+/*socket.on('gameStarting', () => {
+  gameContainer.innerHTML = `<h1 class="text-center mt-5"Jogo Iniciando></h1>`;
+})*/
+socket.on('navigateToGame', (data) => {
+  let count = 3;
+  gameContainer.innerHTML = `<h1 class="text-center mt-5 display-1">Começando em ${count}...</h1>`;
+
+  const countdownInterval = setInterval(() => {
+    count--;
+    if (count > 0) {
+      gameContainer.innerHTML = `<h1 class="text-center mt-5 display-1">Começando em ${count}...</h1>`;
+    } else {
+      clearInterval(countdownInterval);
+      renderGameView(data);
+    }
+  }, 1000);
+});
+
 
 // HELPER FUNCTIONS (UTILS FUNCTIONS)
 function updateRoomList(rooms) {
@@ -206,4 +229,56 @@ function renderLobby(data) {
       });
     }
   }
+}
+
+// renderGameView FUNCTION
+function renderGameView(data) {
+  const { players, settings } = data;
+  const myName = playerNameInput.value.trim();
+  const opponent = players.find(p => p.name !== myName);
+
+  document.querySelector('.cx_inf').style.display = 'block';
+  document.querySelector('.exit-btn-container').style.display = 'block';
+
+  gameContainer.innerHTML = `
+    <div class="container">
+        <div class="caixa row mt-5 align-items-center text-center">
+            <div class="col-md-5">
+                <h4 class="mb-3">Sua Escolha</h4>
+                <div class="list-group fs-1">
+                    <button type="button" class="tesoura list-group-item list-group-item-action list-group-item-dark">✂️</button>
+                    <button type="button" class="pedra list-group-item list-group-item-action list-group-item-dark">🪨</button>
+                    <button type="button" class="papel list-group-item list-group-item-action list-group-item-dark">📃</button>
+                </div>
+            </div>
+
+            <div class="col-md-2 display-4">VS</div>
+
+            <div class="col-md-5">
+                <h4 class="mb-3" id="opponentNameText">Adversário: ${opponent.name}</h4>
+                <div class="card bg-secondary" style="min-height: 150px;">
+                    <div class="card-body d-flex align-items-center justify-content-center">
+                        <p class="resultado display-1 m-0"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mensagem h3 mt-4 text-center" style="min-height: 100px;">
+            Faça sua escolha
+        </div>
+    </div>
+  `;
+
+  document.querySelector('.tesoura').addEventListener('click', () => {
+    socket.emit('playerChoice', 'Tesoura');
+    document.querySelector('.mensagem').textContent = "Você escolheu 'Tesoura'. Esperando adversário..."
+  });
+  document.querySelector('.pedra').addEventListener('click', () => {
+    socket.emit('playerChoice', 'Pedra');
+    document.querySelector('.mensagem').textContent = "Você escolheu 'Pedra'. Esperando adversário..."
+  });
+  document.querySelector('.papel').addEventListener('click', () => {
+    socket.emit('playerChoice', 'Papel');
+    document.querySelector('.mensagem').textContent = "Você escolheu 'Papel'. Esperando adversário..."
+  });
 }
